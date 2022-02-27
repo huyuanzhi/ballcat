@@ -2,14 +2,17 @@ package com.hccake.ballcat.common.oss;
 
 import com.hccake.ballcat.common.oss.domain.StreamTemp;
 import com.hccake.ballcat.common.oss.exception.OssDisabledException;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-
+import java.nio.file.Files;
 import lombok.Getter;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
@@ -22,6 +25,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 /**
  * @author lingting 2021/5/11 9:59
  */
+@Slf4j
 @Getter
 public class OssClient implements DisposableBean {
 
@@ -37,15 +41,15 @@ public class OssClient implements DisposableBean {
 
 	private final String domain;
 
-	private final String root;
+	private final String objectKeyPrefix;
 
 	private final S3Client client;
 
 	private final ObjectCannedACL acl;
 
-	private String downloadPrefix;
+	private final String downloadPrefix;
 
-	private boolean enable = true;
+	private final boolean enable;
 
 	public OssClient(OssProperties properties) {
 		this.endpoint = properties.getEndpoint();
@@ -54,24 +58,28 @@ public class OssClient implements DisposableBean {
 		this.accessSecret = properties.getAccessSecret();
 		this.bucket = properties.getBucket();
 		this.domain = properties.getDomain();
-		this.root = properties.getRootPath();
+		this.objectKeyPrefix = properties.getObjectKeyPrefix();
 		this.acl = properties.getAcl();
 
-		final boolean isEnable = !StringUtils.hasText(accessKey) || !StringUtils.hasText(accessSecret)
+		final boolean disabled = !StringUtils.hasText(accessKey) || !StringUtils.hasText(accessSecret)
 				|| (!StringUtils.hasText(endpoint) && !StringUtils.hasText(domain));
-		if (isEnable) {
-			this.enable = false;
-			client = null;
-		}
-		else {
+		S3Client tempClient = null;
+		String tempDownloadPrefix = "";
+		if (!disabled) {
 			final ClientBuilder builder = createBuilder();
-			client = builder.build();
-			downloadPrefix = builder.downloadPrefix();
-			// 不以 / 结尾
-			if (downloadPrefix.endsWith(OssConstants.SLASH)) {
-				downloadPrefix = downloadPrefix.substring(0, downloadPrefix.length() - 1);
+			try {
+				tempClient = builder.build();
+				tempDownloadPrefix = builder.downloadPrefix();
+			}
+			catch (Exception e) {
+				log.error("oss构造失败!", e);
+				tempClient = null;
 			}
 		}
+
+		this.client = tempClient;
+		this.enable = !disabled;
+		this.downloadPrefix = tempDownloadPrefix;
 	}
 
 	/**
@@ -84,24 +92,57 @@ public class OssClient implements DisposableBean {
 	}
 
 	/**
-	 * 文件上传, 本方法会读一遍流, 计算流大小, 推荐使用 upload(stream, relativePath, size) 方法
-	 * @param relativePath 文件相对 getRoot() 的路径
+	 * 文件上传, 本方法会读一遍流, 计算流大小, 推荐使用 upload(stream, relativeKey, size) 方法
+	 * <h1>注意: 本方法不会主动关闭流. 请手动关闭传入的流</h1>
+	 * @param relativeKey 文件相对 getRoot() 的路径
 	 * @param stream 文件输入流
 	 * @return 文件绝对路径
 	 * @throws IOException 流操作时异常
 	 */
-	public String upload(InputStream stream, String relativePath) throws IOException {
+	public String upload(InputStream stream, String relativeKey) throws IOException {
 		final StreamTemp temp = getSize(stream);
-		return upload(temp.getStream(), relativePath, temp.getSize());
+		try (final InputStream tempStream = temp.getStream()) {
+			return upload(tempStream, relativeKey, temp.getSize());
+		}
 	}
 
-	public String upload(InputStream stream, String relativePath, Long size) {
-		return upload(stream, relativePath, size, acl);
+	/**
+	 * 通过流上传文件
+	 * <h1>注意: 本方法不会主动关闭流. 请手动关闭传入的流</h1>
+	 * @param stream 流
+	 * @param relativeKey 相对key
+	 * @param size 流大小
+	 * @return java.lang.String
+	 */
+	public String upload(InputStream stream, String relativeKey, Long size) {
+		return upload(stream, relativeKey, size, acl);
 	}
 
-	public String upload(InputStream stream, String relativePath, Long size, ObjectCannedACL acl) {
-		final String path = getPath(relativePath);
-		final PutObjectRequest.Builder builder = PutObjectRequest.builder().bucket(bucket).key(path);
+	/**
+	 * 通过文件对象上传文件
+	 * @param file 文件
+	 * @param relativeKey 相对key
+	 * @return java.lang.String
+	 * @throws IOException 流操作时异常
+	 */
+	public String upload(File file, String relativeKey) throws IOException {
+		try (final FileInputStream stream = new FileInputStream(file)) {
+			return upload(stream, relativeKey, Files.size(file.toPath()), acl);
+		}
+	}
+
+	/**
+	 * 通过流上传文件
+	 * <h1>注意: 本方法不会主动关闭流. 请手动关闭传入的流</h1>
+	 * @param stream 流
+	 * @param relativeKey 相对key
+	 * @param size 流大小
+	 * @param acl 文件权限
+	 * @return java.lang.String
+	 */
+	public String upload(InputStream stream, String relativeKey, Long size, ObjectCannedACL acl) {
+		final String objectKey = getObjectKey(relativeKey);
+		final PutObjectRequest.Builder builder = PutObjectRequest.builder().bucket(bucket).key(objectKey);
 
 		if (acl != null) {
 			// 配置权限
@@ -109,18 +150,18 @@ public class OssClient implements DisposableBean {
 		}
 
 		getClient().putObject(builder.build(), RequestBody.fromInputStream(stream, size));
-		return path;
+		return objectKey;
 	}
 
-	public void delete(String path) {
-		getClient().deleteObject(builder -> builder.bucket(bucket).key(getPath(path)));
+	public void delete(String objectKey) {
+		getClient().deleteObject(builder -> builder.bucket(bucket).key(getObjectKey(objectKey)));
 	}
 
 	@SneakyThrows
 	public void copy(String absoluteSource, String absoluteTarget) {
 		String s = getCopyUrl(absoluteSource);
 		final CopyObjectRequest request = CopyObjectRequest.builder().copySource(s).destinationBucket(bucket)
-				.destinationKey(getPath(absoluteTarget)).build();
+				.destinationKey(getObjectKey(absoluteTarget)).build();
 		getClient().copyObject(request);
 	}
 
@@ -128,20 +169,20 @@ public class OssClient implements DisposableBean {
 	 * 获取 相对路径 的下载url
 	 * @author lingting 2021-05-12 18:50
 	 */
-	public String getDownloadUrl(String relativePath) {
-		return getDownloadUrlByAbsolute(getPath(relativePath));
+	public String getDownloadUrl(String relativeKey) {
+		return getDownloadUrlByAbsolute(getObjectKey(relativeKey));
 	}
 
 	/**
 	 * 获取 绝对路径 的下载url
 	 * @author lingting 2021-05-12 18:50
 	 */
-	public String getDownloadUrlByAbsolute(String path) {
-		return String.format("%s/%s", downloadPrefix, path);
+	public String getDownloadUrlByAbsolute(String objectKey) {
+		return String.format("%s/%s", downloadPrefix, objectKey);
 	}
 
-	protected String getCopyUrl(String path) throws UnsupportedEncodingException {
-		return URLEncoder.encode(bucket + getPath(path), StandardCharsets.UTF_8.toString());
+	protected String getCopyUrl(String objectKey) throws UnsupportedEncodingException {
+		return URLEncoder.encode(bucket + getObjectKey(objectKey), StandardCharsets.UTF_8.toString());
 	}
 
 	/**
@@ -152,7 +193,6 @@ public class OssClient implements DisposableBean {
 		return enable;
 	}
 
-	@SneakyThrows
 	protected S3Client getClient() {
 		if (client == null) {
 			throw new OssDisabledException();
@@ -183,15 +223,27 @@ public class OssClient implements DisposableBean {
 	 * @param relativePath 文件相对 getRoot() 的路径
 	 * @return 文件绝对路径
 	 * @author lingting 2021-05-10 15:58
+	 * @deprecated use {@link OssClient#getObjectKey}
 	 */
+	@Deprecated
 	public String getPath(String relativePath) {
-		Assert.hasText(relativePath, "path must not be empty");
+		return getObjectKey(relativePath);
+	}
 
-		if (relativePath.startsWith(OssConstants.SLASH)) {
-			relativePath = relativePath.substring(1);
+	/**
+	 * 获取真实Oss对象key
+	 * @param relativeKey 文件相对 getRoot() 的Key
+	 * @return 文件绝对路径
+	 * @author lingting 2021-05-10 15:58
+	 */
+	public String getObjectKey(String relativeKey) {
+		Assert.hasText(relativeKey, "key must not be empty");
+
+		if (relativeKey.startsWith(OssConstants.SLASH)) {
+			relativeKey = relativeKey.substring(1);
 		}
 
-		return getRoot() + relativePath;
+		return getObjectKeyPrefix() + relativeKey;
 	}
 
 }

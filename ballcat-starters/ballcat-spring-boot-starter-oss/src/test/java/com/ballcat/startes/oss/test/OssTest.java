@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,7 +29,7 @@ class OssTest {
 
 		properties = new OssProperties();
 		// 所有操作(除方法上声明的外)都在此路径下进行
-		properties.setRootPath("/");
+		properties.setObjectKeyPrefix("/");
 		/*
 		 * 如果本值不为空, 则在会进行文件上传时将文件的权限设置为该权限
 		 *
@@ -55,6 +56,7 @@ class OssTest {
 		final String relativePath = "t.txt";
 		client.upload(stream, relativePath);
 		System.out.println(client.getDownloadUrl(relativePath));
+		Assertions.assertNotNull(client.getDownloadUrl(relativePath));
 	}
 
 	@Test
@@ -62,7 +64,7 @@ class OssTest {
 	void aliDomain() {
 
 		properties = new OssProperties();
-		properties.setRootPath("/");
+		properties.setObjectKeyPrefix("/");
 		properties.setAcl(null);
 
 		properties.setBucket("your bucket");
@@ -80,6 +82,7 @@ class OssTest {
 		final String relativePath = "t.txt";
 		client.upload(stream, relativePath);
 		System.out.println(client.getDownloadUrl(relativePath));
+		Assertions.assertNotNull(client.getDownloadUrl(relativePath));
 	}
 
 	/**
@@ -92,7 +95,7 @@ class OssTest {
 	@SneakyThrows
 	void tx() {
 		properties = new OssProperties();
-		properties.setRootPath("/");
+		properties.setObjectKeyPrefix("/");
 		properties.setAcl(null);
 
 		properties.setBucket("your bucket");
@@ -109,6 +112,7 @@ class OssTest {
 		final String relativePath = "t.txt";
 		client.upload(stream, relativePath);
 		System.out.println(client.getDownloadUrl(relativePath));
+		Assertions.assertNotNull(client.getDownloadUrl(relativePath));
 	}
 
 	/**
@@ -119,7 +123,7 @@ class OssTest {
 	void aws() {
 
 		properties = new OssProperties();
-		properties.setRootPath("/");
+		properties.setObjectKeyPrefix("/");
 		properties.setAcl(null);
 
 		properties.setBucket("your bucket");
@@ -137,6 +141,7 @@ class OssTest {
 		final String relativePath = "t.txt";
 		client.upload(stream, relativePath);
 		System.out.println(client.getDownloadUrl(relativePath));
+		Assertions.assertNotNull(client.getDownloadUrl(relativePath));
 	}
 
 	@Test
@@ -144,7 +149,7 @@ class OssTest {
 	void awsDomain() {
 
 		properties = new OssProperties();
-		properties.setRootPath("/");
+		properties.setObjectKeyPrefix("/");
 		properties.setAcl(null);
 
 		properties.setBucket("your bucket");
@@ -162,6 +167,7 @@ class OssTest {
 		final String relativePath = "t.txt";
 		client.upload(stream, relativePath);
 		System.out.println(client.getDownloadUrl(relativePath));
+		Assertions.assertNotNull(client.getDownloadUrl(relativePath));
 	}
 
 }

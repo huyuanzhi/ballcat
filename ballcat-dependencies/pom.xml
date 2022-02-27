@@ -34,7 +34,7 @@
 	</licenses>
 
 	<properties>
-		<revision>0.6.0-SNAPSHOT</revision>
+		<revision>0.7.0-SNAPSHOT</revision>
 
 		<nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
 		<maven-release-plugin.version>3.0.0-M1</maven-release-plugin.version>
@@ -47,17 +47,17 @@
 		<springfox.version>3.0.0</springfox.version>
 		<swagger.version>1.5.21</swagger.version>
 		<io.swagger.v3.version>2.1.11</io.swagger.v3.version>
-		<springdoc-openapi.verison>1.6.2</springdoc-openapi.verison>
+		<springdoc-openapi.verison>1.6.5</springdoc-openapi.verison>
 		<kafka.version>2.5.0</kafka.version>
-		<hutool.version>5.7.16</hutool.version>
-		<fastjson.version>1.2.76</fastjson.version>
-		<mybatis-plus.version>3.4.3.4</mybatis-plus.version>
-		<mybatis.version>3.5.7</mybatis.version>
-		<jsqlparser.version>4.2</jsqlparser.version>
+		<hutool.version>5.7.19</hutool.version>
+		<fastjson.version>1.2.79</fastjson.version>
+		<mybatis-plus.version>3.5.1</mybatis-plus.version>
+		<mybatis.version>3.5.9</mybatis.version>
+		<jsqlparser.version>4.3</jsqlparser.version>
 		<dynamic-datasource.version>3.5.0</dynamic-datasource.version>
 		<xxl-job.version>2.3.0</xxl-job.version>
-		<spring-boot-admin.version>2.5.4</spring-boot-admin.version>
-		<easyexcel.version>2.2.10</easyexcel.version>
+		<spring-boot-admin.version>2.6.0</spring-boot-admin.version>
+		<easyexcel.version>3.0.5</easyexcel.version>
 		<poi.version>4.1.2</poi.version>
 		<jasypt.version>3.0.4</jasypt.version>
 		<jsoup.version>1.14.3</jsoup.version>
@@ -101,6 +101,15 @@
 						<groupId>org.springframework.boot</groupId>
 					</exclusion>
 				</exclusions>
+			</dependency>
+
+			<!-- hutool工具类 -->
+			<dependency>
+				<groupId>cn.hutool</groupId>
+				<artifactId>hutool-bom</artifactId>
+				<version>${hutool.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
 			</dependency>
 
 
@@ -310,6 +319,11 @@
 			<dependency>
 				<groupId>com.hccake</groupId>
 				<artifactId>ballcat-extend-openapi</artifactId>
+				<version>${revision}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.hccake</groupId>
+				<artifactId>ballcat-extend-tesseract</artifactId>
 				<version>${revision}</version>
 			</dependency>
 			<!-- system 系统模块 -->
@@ -568,39 +582,9 @@
 				<artifactId>spring-boot-admin-starter-client</artifactId>
 				<version>${spring-boot-admin.version}</version>
 			</dependency>
-			<!--hutool工具类-->
-			<dependency>
-				<groupId>cn.hutool</groupId>
-				<artifactId>hutool-core</artifactId>
-				<version>${hutool.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>cn.hutool</groupId>
-				<artifactId>hutool-http</artifactId>
-				<version>${hutool.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>cn.hutool</groupId>
-				<artifactId>hutool-crypto</artifactId>
-				<version>${hutool.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>cn.hutool</groupId>
-				<artifactId>hutool-extra</artifactId>
-				<version>${hutool.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>cn.hutool</groupId>
-				<artifactId>hutool-cache</artifactId>
-				<version>${hutool.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>cn.hutool</groupId>
-				<artifactId>hutool-json</artifactId>
-				<version>${hutool.version}</version>
-			</dependency>
-			<!-- fastjson -->
 
+
+			<!-- fastjson -->
 			<dependency>
 				<groupId>com.alibaba</groupId>
 				<artifactId>fastjson</artifactId>

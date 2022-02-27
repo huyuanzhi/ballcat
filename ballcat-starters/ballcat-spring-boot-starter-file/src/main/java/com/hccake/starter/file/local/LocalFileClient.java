@@ -80,7 +80,7 @@ public class LocalFileClient implements FileClient {
 		}
 
 		try (FileOutputStream outputStream = new FileOutputStream(file)) {
-			StreamUtils.inputToOutput(stream, outputStream);
+			StreamUtils.write(stream, outputStream);
 		}
 
 		return file.getPath();

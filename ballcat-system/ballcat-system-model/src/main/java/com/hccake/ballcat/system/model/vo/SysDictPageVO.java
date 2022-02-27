@@ -48,15 +48,9 @@ public class SysDictPageVO {
 	private String remarks;
 
 	/**
-	 * 可编辑的
-	 */
-	@Schema(title = "1：是 0：否")
-	private Integer editable;
-
-	/**
 	 * 数据类型
 	 */
-	@Schema(title = "数据类型,1:Number 2:String 3:Boolean")
+	@Schema(title = "数据类型", description = "1:Number 2:String 3:Boolean")
 	private Integer valueType;
 
 	/**

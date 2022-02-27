@@ -1,7 +1,12 @@
 package com.hccake.ballcat.system.manager;
 
 import cn.hutool.core.collection.CollectionUtil;
+import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.IdUtil;
+import com.hccake.ballcat.common.core.exception.BusinessException;
+import com.hccake.ballcat.common.model.domain.PageParam;
+import com.hccake.ballcat.common.model.domain.PageResult;
+import com.hccake.ballcat.common.model.result.BaseResultCode;
 import com.hccake.ballcat.system.converter.SysDictItemConverter;
 import com.hccake.ballcat.system.event.DictChangeEvent;
 import com.hccake.ballcat.system.model.entity.SysDict;
@@ -13,11 +18,6 @@ import com.hccake.ballcat.system.model.vo.SysDictItemPageVO;
 import com.hccake.ballcat.system.model.vo.SysDictPageVO;
 import com.hccake.ballcat.system.service.SysDictItemService;
 import com.hccake.ballcat.system.service.SysDictService;
-import com.hccake.ballcat.common.core.constant.enums.BooleanEnum;
-import com.hccake.ballcat.common.core.exception.BusinessException;
-import com.hccake.ballcat.common.model.domain.PageParam;
-import com.hccake.ballcat.common.model.domain.PageResult;
-import com.hccake.ballcat.common.model.result.BaseResultCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -72,9 +72,6 @@ public class SysDictManager {
 	public boolean updateDictById(SysDict sysDict) {
 		// 查询现有数据
 		SysDict dict = sysDictService.getById(sysDict.getId());
-		if (BooleanEnum.TRUE.getValue() != dict.getEditable()) {
-			throw new BusinessException(BaseResultCode.LOGIC_CHECK_ERROR.getCode(), "该字典项目不能修改");
-		}
 		sysDict.setHashCode(IdUtil.fastSimpleUUID());
 		boolean result = sysDictService.updateById(sysDict);
 		if (result) {
@@ -86,22 +83,48 @@ public class SysDictManager {
 	/**
 	 * 删除字典
 	 * @param id 字典id
-	 * @return 执行是否成功
 	 */
 	@Transactional(rollbackFor = Exception.class)
-	public boolean removeDictById(Integer id) {
+	public void removeDictById(Integer id) {
 		// 查询现有数据
 		SysDict dict = sysDictService.getById(id);
-		if (BooleanEnum.TRUE.getValue() != dict.getEditable()) {
-			throw new BusinessException(BaseResultCode.LOGIC_CHECK_ERROR.getCode(), "该字典项目不能删除");
-		}
-		// 需级联删除对应的字典项
-		if (sysDictService.removeById(id) && sysDictItemService.removeByDictCode(dict.getCode())) {
-			return true;
-		}
-		else {
-			throw new BusinessException(BaseResultCode.UPDATE_DATABASE_ERROR.getCode(), "字典项删除异常");
-		}
+		// 字典标识
+		String dictCode = dict.getCode();
+
+		// 有关联字典项则不允许删除
+		Assert.isFalse(sysDictItemService.exist(dictCode),
+				() -> new BusinessException(BaseResultCode.LOGIC_CHECK_ERROR.getCode(), "该字典下存在字典项，不允许删除！"));
+
+		// 删除字典
+		Assert.isTrue(sysDictService.removeById(id),
+				() -> new BusinessException(BaseResultCode.UPDATE_DATABASE_ERROR.getCode(), "字典删除异常"));
+	}
+
+	/**
+	 * 更新字典项状态
+	 * @param itemId 字典项id
+	 */
+	@Transactional(rollbackFor = Exception.class)
+	public void updateDictItemStatusById(Integer itemId, Integer status) {
+		// 获取字典项
+		SysDictItem dictItem = sysDictItemService.getById(itemId);
+		Assert.notNull(dictItem,
+				() -> new BusinessException(BaseResultCode.LOGIC_CHECK_ERROR.getCode(), "错误的字典项 id：" + itemId));
+
+		// 更新字典项状态
+		SysDictItem entity = new SysDictItem();
+		entity.setId(itemId);
+		entity.setStatus(status);
+		Assert.isTrue(sysDictItemService.updateById(entity),
+				() -> new BusinessException(BaseResultCode.UPDATE_DATABASE_ERROR.getCode(), "字典项状态更新异常"));
+
+		// 更新字典 hash
+		String dictCode = dictItem.getDictCode();
+		Assert.isTrue(sysDictService.updateHashCode(dictCode),
+				() -> new BusinessException(BaseResultCode.UPDATE_DATABASE_ERROR.getCode(), "字典 Hash 更新异常"));
+
+		// 发布字典更新事件
+		eventPublisher.publishEvent(new DictChangeEvent(dictCode));
 	}
 
 	/**
@@ -143,11 +166,6 @@ public class SysDictManager {
 	public boolean updateDictItemById(SysDictItem sysDictItem) {
 		// 根据ID查询字典
 		String dictCode = sysDictItem.getDictCode();
-		SysDict dict = sysDictService.getByCode(dictCode);
-		// 校验是否可编辑
-		if (BooleanEnum.TRUE.getValue() != dict.getEditable()) {
-			throw new BusinessException(BaseResultCode.LOGIC_CHECK_ERROR.getCode(), "该字典项目不能修改");
-		}
 		// 更新字典项Hash值
 		if (!sysDictService.updateHashCode(dictCode)) {
 			return false;
@@ -169,11 +187,6 @@ public class SysDictManager {
 		// 根据ID查询字典
 		SysDictItem dictItem = sysDictItemService.getById(id);
 		String dictCode = dictItem.getDictCode();
-		SysDict dict = sysDictService.getByCode(dictCode);
-		// 校验是否系统内置
-		if (BooleanEnum.TRUE.getValue() != dict.getEditable()) {
-			throw new BusinessException(BaseResultCode.LOGIC_CHECK_ERROR.getCode(), "该字典项目不能删除");
-		}
 		// 更新字典项Hash值
 		if (!sysDictService.updateHashCode(dictCode)) {
 			return false;
